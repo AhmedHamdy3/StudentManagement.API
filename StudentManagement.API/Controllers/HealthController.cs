@@ -10,7 +10,7 @@ namespace StudentManagement.API.Controllers
         [HttpGet]
         public IActionResult Get()
         {
-            return Ok(ne
+            return Ok(new
             {
                 Status = "Healthy",
                 Message = "Student Management API is running successfully."
