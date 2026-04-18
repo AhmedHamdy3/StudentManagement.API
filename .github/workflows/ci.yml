@@ -2,11 +2,11 @@ name: studentManagment API CI
 on:
   push:
     branches:
-      - main
+      - master
       - feature/**
   pull_request:
     branches:
-      - main
+      - master
 jobs:
   build-test-publish:
     name: Build, Test, and puplish
