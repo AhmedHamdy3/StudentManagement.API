@@ -48,9 +48,8 @@ jobs:
         
         steps:
             - name: Ensure deployment folders exist
-              shell: powershell
+              shell: powershell -ExecutionPolicy Bypass
               run: |
-                   Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
                    $tempPath = "${{ vars.TEMP_PUBLISH_PATH }}"
                    $backupPath = "${{ vars.BACKUP_PATH }}"
                    $deployPath = "${{ vars.DEPLOY_PATH }}"
@@ -74,9 +73,8 @@ jobs:
                 path: ${{ vars.TEMP_PUBLISH_PATH }}
 
             - name: Backup current IIS deployment
-              shell: powershell
+              shell: powershell -ExecutionPolicy Bypass
               run: |
-                   Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
                    $source = "${{ vars.DEPLOY_PATH }}"
                    $backup = "${{ vars.BACKUP_PATH }}"
                    Write-Host "Preparing backup..."
@@ -99,9 +97,8 @@ jobs:
                    }
                    
             - name: stop IIS App Pool
-              shell: powershell
+              shell: powershell -ExecutionPolicy Bypass
               run: |
-                    Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
                     Import-Module WebAdministration
                     $appPool = "${{ vars.IIS_APP_POOL }}"
                     $state = (Get-WebAppPoolState -Name $appPool).Value
@@ -114,13 +111,12 @@ jobs:
                     }
                 
             - name: Wait after stopping app Pool
-              shell: powershell
+              shell: powershell -ExecutionPolicy Bypass
               run: Start-Sleep -Seconds 5
               
             - name: Clean deployment temp folder Checkout
-              shell: powershell
+              shell: powershell -ExecutionPolicy Bypass
               run: |
-                  Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass  
                   $source = "${{ vars.TEMP_PUBLISH_PATH }}"
                   if (!(Test-Path $source)) {
                       throw "Temp publish path does not exist: $source"
@@ -132,9 +128,8 @@ jobs:
                   Write-Host "Publish artifact is available for deployment."
                   
             - name: Deploy publish files to IIS folder
-              shell: powershell
+              shell: powershell -ExecutionPolicy Bypass
               run: |
-                      Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
                       $source = "${{ vars.TEMP_PUBLISH_PATH }}"
                       $destination = "${{ vars.DEPLOY_PATH }}"
                       if (!(Test-Path $destination)) {
@@ -149,9 +144,8 @@ jobs:
                       exit 0
 
             - name: Start IIS App Pool
-              shell: powershell
+              shell: powershell -ExecutionPolicy Bypass
               run: |
-                    Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
                     Import-Module WebAdministration
                     $appPool = "${{ vars.IIS_APP_POOL }}"
                     $state = (Get-WebAppPoolState -Name $appPool).Value
@@ -164,13 +158,12 @@ jobs:
                     }
 
             - name: Wait for application startup
-              shell: powershell
+              shell: powershell -ExecutionPolicy Bypass
               run: Start-Sleep -Seconds 10
               
             - name: Run health check
-              shell: powershell
+              shell: powershell -ExecutionPolicy Bypass
               run: |
-                    Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
                     $url = "${{ vars.API_HEALTH_URL }}"
                     Write-Host "Running health check: $url"
                     
@@ -187,9 +180,8 @@ jobs:
                     Write-Host "Health check passed successfully."
                     
             - name: Run smoke test
-              shell: powershell
+              shell: powershell -ExecutionPolicy Bypass
               run: |
-                  Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
                   $url = "${{ vars.SMOKE_TEST_URL }}"
                   Write-Host "Running smoke test: $url"
                   try {
@@ -210,9 +202,8 @@ jobs:
                   
             - name: Rollback deployment on failure
               if: ${{failure()}}
-              shell: powershell
+              shell: powershell -ExecutionPolicy Bypass
               run: |
-                    Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
                     Import-Module WebAdministration
                     $appPool = "${{ vars.IIS_APP_POOL }}"
                     $backup = "${{ vars.BACKUP_PATH }}"
@@ -267,7 +258,6 @@ jobs:
                     
             - name: Mark workflow as failed after rollback
               if: ${{ failure() }}
-              shell: powershell
+              shell: powershell -ExecutionPolicy Bypass
               run: |
-                  Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass  
                   throw "Deployment failed. Rollback was executed."
