@@ -1,0 +1,263 @@
+name: StudnetManagement API CI-CD
+on:
+    push:
+        branches:
+            - master
+jobs:
+    ci-build-test-publish:
+        name: CI - Build, Test, and publish
+        
+        runs-on: ubuntu-latest
+        
+        steps:
+            - name: Checkout source code
+              uses: actions/checkout@v5
+              
+            - name: Setup .NET 8 SDK
+              uses: actions/setup-dotnet@v5
+              with:
+                dotnet-version: '8.0.x'
+            
+            - name: Restore dependencies
+              run: dotnet restore StudentManagement.API.sln
+              
+            - name: Build Solution
+              run: dotnet build StudentManagement.API.sln --configuration Release --no-Restore
+              
+            - name: Run tests
+              run: dotnet test StudentManagement.API.sln --configuration Release --no-build --verbosity normal
+              
+            - name: Publish Web API
+              run: dotnet publish StudentManagement.API/StudentManagement.API.csproj --configuration Release --output ./publish --no-build
+              
+            - name: Upload publish artifact
+              uses: actions/upload-artifact@v4
+              with:
+                name: studentmanagement-api-publish
+                path: ./publish
+                
+    cd-deploy-to-iis:
+        name: CD - Deploy to iis
+        
+        needs: ci-build-test-publish
+        
+        runs-on: [self-hosted, windows, iis]
+        
+        environment: 
+            name: Development
+        
+        steps:
+            - name: Ensure deployment folders exist
+              shell: powershell
+              run: |
+                   $tempPath = "${{ vars.TEMP_PUBLISH_PATH }}"
+                   $backupPath = "${{ vars.BACKUP_PATH }}"
+                   $deployPath = "${{ vars.DEPLOY_PATH }}"
+                
+                   if(!(Test-Path $tempPath)){
+                    New-Item -ItemType Directory  -Path $tempPath -Force | Out-Null
+                   }
+                   if(!(Test-Path $backupPath)){
+                    New-Item -ItemType Directory -Path $backupPath -Force | Out-Null
+                   }
+                   if (!(Test-Path $deployPath)) {
+                    New-Item -ItemType Directory -Path $deployPath -Force | Out-Null
+                   }
+                
+                   Write-Host "Required folders verified successfully."
+            
+            - name: Download publish artifact
+              uses: actions/download-artifact@v5
+              with:
+                name: studentmanagement-api-publish
+                path: ${{ vars.TEMP_PUBLISH_PATH }}
+
+            - name: Backup current IIS deployment
+              shell: powershell
+              run: |
+                   $source = "${{ vars.DEPLOY_PATH }}"
+                   $backup = "${{ vars.BACKUP_PATH }}"
+                   Write-Host "Preparing backup..."
+                   
+                   if(Test-Path $backup){
+                    Get-ChildItem -Path $backup -Force -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+                   }
+                   if(Test-Path $source){
+                    robocopy $source $backup /MIR /R:2 /W:5
+                    $exitCode = $LASTEXITCODE
+                   
+                    if($exitCode -ge 8){
+                     throw "Backup failed. Robocopy exit code: $exitCode"
+                    }
+                    Write-Host "Backup completed successfully. Robocopy exit code: $exitCode"
+                    exit 0
+                   }
+                   else{
+                    Write-Host "Deployment path does not exist yet. Skipping backup."
+                   }
+                   
+            - name: stop IIS App Pool
+              shell: powershell
+              run: |
+                    Import-Module WebAdministration
+                    $appPool = "${{ vars.IIS_APP_POOL }}"
+                    $state = (Get-WebAppPoolState -Name $appPool).Value
+                    if($state -ne "Stopped"){
+                        Stop-WebAppPool -Name $appPool
+                        Write-Host "IIS App Pool stopped successfully."
+                    }
+                    else{
+                        Write-Host "IIS App Pool is already stopped."
+                    }
+                
+            - name: Wait after stopping app Pool
+              shell: powershell
+              run: Start-Sleep -Seconds 5
+              
+            - name: Clean deployment temp folder Checkout
+              shell: powershell
+              run: |
+                  $source = "${{ vars.TEMP_PUBLISH_PATH }}"
+                  if (!(Test-Path $source)) {
+                      throw "Temp publish path does not exist: $source"
+                  }
+                  $files = Get-ChildItem -Path $source -Force -ErrorAction SilentlyContinue
+                  if($null -eq $files -or $files.Count -eq 0){
+                    throw "Temp publish path is empty. Deployment artifact was not downloaded correctly."
+                  }
+                  Write-Host "Publish artifact is available for deployment."
+                  
+            - name: Deploy publish files to IIS folder
+              shell: powershell
+              run: |
+                      $source = "${{ vars.TEMP_PUBLISH_PATH }}"
+                      $destination = "${{ vars.DEPLOY_PATH }}"
+                      if (!(Test-Path $destination)) {
+                          New-Item -ItemType Directory -Path $destination -Force | Out-Null
+                      }
+                      robocopy $source $destination /MIR /R:2 /W:5
+                      $exitCode = $LASTEXITCODE
+                      if ($exitCode -ge 8) {
+                          throw "Deployment failed during file copy. Robocopy exit code: $exitCode"
+                      }
+                      Write-Host "Deployment copy completed successfully. Robocopy exit code: $exitCode"
+                      exit 0
+
+            - name: Start IIS App Pool
+              shell: powershell
+              run: |
+                    Import-Module WebAdministration
+                    $appPool = "${{ vars.IIS_APP_POOL }}"
+                    $state = (Get-WebAppPoolState -Name $appPool).Value
+                    if ($state -ne "Started") {
+                      Start-WebAppPool -Name $appPool
+                      Write-Host "IIS App Pool started successfully."
+                    }
+                    else {
+                      Write-Host "IIS App Pool is already started."
+                    }
+
+            - name: Wait for application startup
+              shell: powershell
+              run: Start-Sleep -Seconds 10
+              
+            - name: Run health check
+              shell: powershell
+              run: |
+                    $url = "${{ vars.API_HEALTH_URL }}"
+                    Write-Host "Running health check: $url"
+                    
+                    try{
+                        $response = Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 30
+                    }
+                    catch{
+                        throw "Health check request failed. Error: $($_.Exception.Message)"
+                    }
+                    
+                    if($response.StatusCode -ne 200){
+                        throw "Health check failed. Status code: $($response.StatusCode)"
+                    }
+                    Write-Host "Health check passed successfully."
+                    
+            - name: Run smoke test
+              shell: powershell
+              run: |
+                  $url = "${{ vars.SMOKE_TEST_URL }}"
+                  Write-Host "Running smoke test: $url"
+                  try {
+                      $response = Invoke-RestMethod -Uri $url -Method Get -TimeoutSec 30
+                  }
+                  catch {
+                      throw "Smoke test request failed. Error: $($_.Exception.Message)"
+                  }
+                  if ($null -eq $response) {
+                      throw "Smoke test failed. No data returned."
+                  }
+                  if($response -is [System.Array]){
+                    if($response.Count -lt 1){
+                        throw "Smoke test failed. Response array is empty."
+                    }
+                  }
+                  Write-Host "Smoke test passed successfully."
+                  
+            - name: Rollback deployment on failure
+              if: ${{failure()}}
+              shell: powershell
+              run: |
+                    Import-Module WebAdministration
+                    $appPool = "${{ vars.IIS_APP_POOL }}"
+                    $backup = "${{ vars.BACKUP_PATH }}"
+                    $destination = "${{ vars.DEPLOY_PATH }}"
+                    $rollbackHealthUrl = "${{ vars.API_HEALTH_URL }}"
+                    Write-Host "Deployment validation failed. Starting rollback..."
+                    if (!(Test-Path $backup)) {
+                      throw "Rollback failed. Backup path does not exist: $backup"
+                    }
+                    $backupFiles = Get-ChildItem -Path $backup -Force -ErrorAction SilentlyContinue
+                    if ($null -eq $backupFiles -or $backupFiles.Count -eq 0) {
+                     throw "Rollback failed. Backup folder is empty."
+                    }
+                    $state = (Get-WebAppPoolState -Name $appPool).Value
+                    if ($state -ne "Stopped") {
+                        Stop-WebAppPool -Name $appPool
+                        Write-Host "IIS App Pool stopped for rollback."
+                    }
+                    else {
+                      Write-Host "IIS App Pool already stopped."
+                    }
+                    Start-Sleep -Seconds 5
+                    if (!(Test-Path $destination)) {
+                      New-Item -ItemType Directory -Path $destination -Force | Out-Null
+                    }
+                    robocopy $backup $destination /MIR /R:2 /W:5
+                    $exitCode = $LASTEXITCODE
+                    if ($exitCode -ge 8) {
+                      throw "Rollback file restore failed. Robocopy exit code: $exitCode"
+                    }
+                    Write-Host "Rollback copy completed successfully. Robocopy exit code: $exitCode"
+                    $state = (Get-WebAppPoolState -Name $appPool).Value
+                    if ($state -ne "Started") {
+                        Start-WebAppPool -Name $appPool
+                        Write-Host "IIS App Pool started after rollback."
+                    }
+                    else {
+                        Write-Host "IIS App Pool already started."
+                    }
+                    Start-Sleep -Seconds 10
+                    try {
+                        $rollbackResponse = Invoke-WebRequest -Uri $rollbackHealthUrl -UseBasicParsing -TimeoutSec 30
+                    }
+                    catch {
+                        throw "Rollback completed, but health check request failed after rollback. Error: $($_.Exception.Message)"
+                    }
+                    if ($rollbackResponse.StatusCode -ne 200) {
+                        throw "Rollback completed, but health check after rollback failed. Status code: $($rollbackResponse.StatusCode)"
+                    }
+                    Write-Host "Rollback completed successfully."
+                    exit 0
+                    
+            - name: Mark workflow as failed after rollback
+              if: ${{ failure() }}
+              shell: powershell
+              run: |
+                  throw "Deployment failed. Rollback was executed."
