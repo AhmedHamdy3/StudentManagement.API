@@ -50,7 +50,7 @@ jobs:
             - name: Ensure deployment folders exist
               shell: powershell
               run: |
-                    Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+                   Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
                    $tempPath = "${{ vars.TEMP_PUBLISH_PATH }}"
                    $backupPath = "${{ vars.BACKUP_PATH }}"
                    $deployPath = "${{ vars.DEPLOY_PATH }}"
