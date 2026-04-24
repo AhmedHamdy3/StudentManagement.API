@@ -50,6 +50,7 @@ jobs:
             - name: Ensure deployment folders exist
               shell: powershell
               run: |
+                    Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
                    $tempPath = "${{ vars.TEMP_PUBLISH_PATH }}"
                    $backupPath = "${{ vars.BACKUP_PATH }}"
                    $deployPath = "${{ vars.DEPLOY_PATH }}"
@@ -75,6 +76,7 @@ jobs:
             - name: Backup current IIS deployment
               shell: powershell
               run: |
+                   Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
                    $source = "${{ vars.DEPLOY_PATH }}"
                    $backup = "${{ vars.BACKUP_PATH }}"
                    Write-Host "Preparing backup..."
@@ -99,6 +101,7 @@ jobs:
             - name: stop IIS App Pool
               shell: powershell
               run: |
+                    Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
                     Import-Module WebAdministration
                     $appPool = "${{ vars.IIS_APP_POOL }}"
                     $state = (Get-WebAppPoolState -Name $appPool).Value
@@ -117,6 +120,7 @@ jobs:
             - name: Clean deployment temp folder Checkout
               shell: powershell
               run: |
+                  Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass  
                   $source = "${{ vars.TEMP_PUBLISH_PATH }}"
                   if (!(Test-Path $source)) {
                       throw "Temp publish path does not exist: $source"
@@ -130,6 +134,7 @@ jobs:
             - name: Deploy publish files to IIS folder
               shell: powershell
               run: |
+                      Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
                       $source = "${{ vars.TEMP_PUBLISH_PATH }}"
                       $destination = "${{ vars.DEPLOY_PATH }}"
                       if (!(Test-Path $destination)) {
@@ -146,6 +151,7 @@ jobs:
             - name: Start IIS App Pool
               shell: powershell
               run: |
+                    Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
                     Import-Module WebAdministration
                     $appPool = "${{ vars.IIS_APP_POOL }}"
                     $state = (Get-WebAppPoolState -Name $appPool).Value
@@ -164,6 +170,7 @@ jobs:
             - name: Run health check
               shell: powershell
               run: |
+                    Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
                     $url = "${{ vars.API_HEALTH_URL }}"
                     Write-Host "Running health check: $url"
                     
@@ -182,6 +189,7 @@ jobs:
             - name: Run smoke test
               shell: powershell
               run: |
+                  Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
                   $url = "${{ vars.SMOKE_TEST_URL }}"
                   Write-Host "Running smoke test: $url"
                   try {
@@ -204,6 +212,7 @@ jobs:
               if: ${{failure()}}
               shell: powershell
               run: |
+                    Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
                     Import-Module WebAdministration
                     $appPool = "${{ vars.IIS_APP_POOL }}"
                     $backup = "${{ vars.BACKUP_PATH }}"
@@ -260,4 +269,5 @@ jobs:
               if: ${{ failure() }}
               shell: powershell
               run: |
+                  Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass  
                   throw "Deployment failed. Rollback was executed."
