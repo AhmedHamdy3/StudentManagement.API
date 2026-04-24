@@ -12,7 +12,7 @@ namespace StudentManagement.API.Controllers
         {
             return Ok(new
             {
-                Status = "Healthy",
+                Status = "Healthy U123",
                 Message = "Student Management API is running successfully."
             });
         }
