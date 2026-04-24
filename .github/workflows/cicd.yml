@@ -48,7 +48,7 @@ jobs:
         
         steps:
             - name: Ensure deployment folders exist
-              shell: powershell -ExecutionPolicy Bypass
+              shell: powershell -ExecutionPolicy Bypass -File {0}
               run: |
                    $tempPath = "${{ vars.TEMP_PUBLISH_PATH }}"
                    $backupPath = "${{ vars.BACKUP_PATH }}"
@@ -73,7 +73,7 @@ jobs:
                 path: ${{ vars.TEMP_PUBLISH_PATH }}
 
             - name: Backup current IIS deployment
-              shell: powershell -ExecutionPolicy Bypass
+              shell: powershell -ExecutionPolicy Bypass -File {0}
               run: |
                    $source = "${{ vars.DEPLOY_PATH }}"
                    $backup = "${{ vars.BACKUP_PATH }}"
@@ -97,7 +97,7 @@ jobs:
                    }
                    
             - name: stop IIS App Pool
-              shell: powershell -ExecutionPolicy Bypass
+              shell: powershell -ExecutionPolicy Bypass -File {0}
               run: |
                     Import-Module WebAdministration
                     $appPool = "${{ vars.IIS_APP_POOL }}"
@@ -111,11 +111,11 @@ jobs:
                     }
                 
             - name: Wait after stopping app Pool
-              shell: powershell -ExecutionPolicy Bypass
+              shell: powershell -ExecutionPolicy Bypass -File {0}
               run: Start-Sleep -Seconds 5
               
             - name: Clean deployment temp folder Checkout
-              shell: powershell -ExecutionPolicy Bypass
+              shell: powershell -ExecutionPolicy Bypass -File {0}
               run: |
                   $source = "${{ vars.TEMP_PUBLISH_PATH }}"
                   if (!(Test-Path $source)) {
@@ -128,7 +128,7 @@ jobs:
                   Write-Host "Publish artifact is available for deployment."
                   
             - name: Deploy publish files to IIS folder
-              shell: powershell -ExecutionPolicy Bypass
+              shell: powershell -ExecutionPolicy Bypass -File {0}
               run: |
                       $source = "${{ vars.TEMP_PUBLISH_PATH }}"
                       $destination = "${{ vars.DEPLOY_PATH }}"
@@ -144,7 +144,7 @@ jobs:
                       exit 0
 
             - name: Start IIS App Pool
-              shell: powershell -ExecutionPolicy Bypass
+              shell: powershell -ExecutionPolicy Bypass -File {0}
               run: |
                     Import-Module WebAdministration
                     $appPool = "${{ vars.IIS_APP_POOL }}"
@@ -158,11 +158,11 @@ jobs:
                     }
 
             - name: Wait for application startup
-              shell: powershell -ExecutionPolicy Bypass
+              shell: powershell -ExecutionPolicy Bypass -File {0}
               run: Start-Sleep -Seconds 10
               
             - name: Run health check
-              shell: powershell -ExecutionPolicy Bypass
+              shell: powershell -ExecutionPolicy Bypass -File {0}
               run: |
                     $url = "${{ vars.API_HEALTH_URL }}"
                     Write-Host "Running health check: $url"
@@ -180,7 +180,7 @@ jobs:
                     Write-Host "Health check passed successfully."
                     
             - name: Run smoke test
-              shell: powershell -ExecutionPolicy Bypass
+              shell: powershell -ExecutionPolicy Bypass -File {0}
               run: |
                   $url = "${{ vars.SMOKE_TEST_URL }}"
                   Write-Host "Running smoke test: $url"
@@ -202,7 +202,7 @@ jobs:
                   
             - name: Rollback deployment on failure
               if: ${{failure()}}
-              shell: powershell -ExecutionPolicy Bypass
+              shell: powershell -ExecutionPolicy Bypass -File {0}
               run: |
                     Import-Module WebAdministration
                     $appPool = "${{ vars.IIS_APP_POOL }}"
@@ -258,6 +258,6 @@ jobs:
                     
             - name: Mark workflow as failed after rollback
               if: ${{ failure() }}
-              shell: powershell -ExecutionPolicy Bypass
+              shell: powershell -ExecutionPolicy Bypass -File {0}
               run: |
                   throw "Deployment failed. Rollback was executed."
